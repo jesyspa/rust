@@ -1,0 +1,9 @@
+error[E0161]: cannot move a value of type [u32]: the size of [u32] cannot be statically determined
+  --> $DIR/issue-87935-unsized-box-expr.rs:4:26
+   |
+LL |     let _x: Box<[u32]> = box { loop {} };
+   |                          ^^^^^^^^^^^^^^^
+
+error: aborting due to previous error
+
+For more information about this error, try `rustc --explain E0161`.

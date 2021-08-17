@@ -2021,10 +2021,8 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
 
             Rvalue::NullaryOp(_, ty) => {
                 // Even with unsized locals cannot box an unsized value.
-                if self.unsized_feature_enabled() {
-                    let span = body.source_info(location).span;
-                    self.ensure_place_sized(ty, span);
-                }
+                let span = body.source_info(location).span;
+                self.ensure_place_sized(ty, span);
 
                 let trait_ref = ty::TraitRef {
                     def_id: tcx.require_lang_item(LangItem::Sized, Some(self.last_span)),
