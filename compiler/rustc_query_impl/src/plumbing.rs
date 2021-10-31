@@ -391,6 +391,16 @@ macro_rules! define_queries {
                 }
             }
 
+            pub fn LocalTask() -> DepKindStruct {
+                DepKindStruct {
+                    is_anon: false,
+                    is_eval_always: false,
+                    fingerprint_style: FingerprintStyle::Opaque,
+                    force_from_dep_node: None,
+                    try_load_from_on_disk_cache: None,
+                }
+            }
+
             $(pub fn $name()-> DepKindStruct {
                 let is_anon = is_anon!([$($modifiers)*]);
                 let is_eval_always = is_eval_always!([$($modifiers)*]);
@@ -500,7 +510,7 @@ macro_rules! define_queries_struct {
             }
         }
 
-        impl QueryEngine<'tcx> for Queries<'tcx> {
+        impl<'tcx> QueryEngine<'tcx> for Queries<'tcx> {
             fn as_any(&'tcx self) -> &'tcx dyn std::any::Any {
                 let this = unsafe { std::mem::transmute::<&Queries<'_>, &Queries<'_>>(self) };
                 this as _
@@ -524,6 +534,17 @@ macro_rules! define_queries_struct {
                 let qcx = QueryCtxt { tcx, queries: self };
                 get_query::<queries::$name<$tcx>, _>(qcx, span, key, lookup, mode)
             })*
+
+            fn run_local_task(
+                &'tcx self,
+                tcx: TyCtxt<$tcx>,
+                task_id: <dep_graph::DepKind as rustc_query_system::dep_graph::DepKind>::LocalTaskId,
+                key: LocalDefId,
+                task: Box<dyn 'tcx + FnOnce(TyCtxt<'tcx>, LocalDefId) -> Option<Box<dyn std::any::Any>>>,
+            ) -> Option<Box<dyn std::any::Any>> {
+                let qcx = QueryCtxt { tcx, queries: self };
+                tcx.dep_graph.with_local_task(qcx, task_id, key, task)
+            }
         }
     };
 }

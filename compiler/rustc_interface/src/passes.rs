@@ -18,7 +18,7 @@ use rustc_lint::LintStore;
 use rustc_metadata::creader::CStore;
 use rustc_metadata::{encode_metadata, EncodedMetadata};
 use rustc_middle::arena::Arena;
-use rustc_middle::dep_graph::DepGraph;
+use rustc_middle::dep_graph::{DepGraph, LocalTaskId};
 use rustc_middle::ty::query::{ExternProviders, Providers};
 use rustc_middle::ty::{self, GlobalCtxt, ResolverOutputs, TyCtxt};
 use rustc_mir_build as mir_build;
@@ -854,6 +854,18 @@ fn analysis(tcx: TyCtxt<'_>, (): ()) -> Result<()> {
 
     let sess = tcx.sess;
     let mut entry_point = None;
+
+    tracing::debug!("===== running local task =====");
+    for def_id in tcx.hir().body_owners() {
+        tcx.run_local_task::<()>(LocalTaskId::TestPass, def_id, |tcx, def_id| {
+            let s = tcx.def_path_debug_str(def_id.to_def_id());
+            tracing::debug!("Test pass: {}", tcx.def_path_debug_str(def_id.to_def_id()));
+            let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+            tcx.hir().get(hir_id);
+            if s.contains("bar") { Some(()) } else { None }
+        });
+    }
+    tracing::debug!("===== local task complete =====");
 
     sess.time("misc_checking_1", || {
         parallel!(

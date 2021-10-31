@@ -88,6 +88,14 @@ impl<K: DepKind> DepNode<K> {
 
         dep_node
     }
+
+    pub fn construct_local<Ctxt, Key>(tcx: Ctxt, arg: &(K::LocalTaskId, Key)) -> DepNode<K>
+    where
+        Ctxt: super::DepContext<DepKind = K>,
+        (K::LocalTaskId, Key): DepNodeParams<Ctxt>,
+    {
+        Self::construct(tcx, K::LOCAL_TASK, arg)
+    }
 }
 
 impl<K: DepKind> fmt::Debug for DepNode<K> {

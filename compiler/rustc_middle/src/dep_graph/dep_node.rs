@@ -191,6 +191,10 @@ rustc_dep_node_append!([define_dep_nodes!][ <'tcx>
     // WARNING: if `MonoItem` is changed, make sure you update `make_compile_mono_item` below.
     // Only used by rustc_codegen_cranelift
     [] CompileMonoItem(MonoItem),
+
+    // WARNING: if `todo` is changed, make sure you update `make_local_task` below.
+    // The second parameter may vary per task.  todo before PR: clarify
+    [] LocalTask((u64, _)),
 ]);
 
 // WARNING: `construct` is generic and does not know that `CompileCodegenUnit` takes `Symbol`s as keys.

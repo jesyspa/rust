@@ -55,6 +55,7 @@ use rustc_ast as ast;
 use rustc_attr as attr;
 use rustc_span::symbol::Symbol;
 use rustc_span::{Span, DUMMY_SP};
+use std::any::Any;
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -213,7 +214,7 @@ macro_rules! define_callbacks {
             })*
         }
 
-        impl TyCtxt<$tcx> {
+        impl<$tcx> TyCtxt<$tcx> {
             $($(#[$attr])*
             #[inline(always)]
             #[must_use]
@@ -221,6 +222,21 @@ macro_rules! define_callbacks {
             {
                 self.at(DUMMY_SP).$name(key)
             })*
+
+            pub fn run_local_task<R: Any>(
+                self,
+                task_id: <dep_graph::DepKind as rustc_query_system::dep_graph::DepKind>::LocalTaskId,
+                key: LocalDefId,
+                task: fn(TyCtxt<$tcx>, LocalDefId) -> Option<R>,
+            ) -> Option<R> {
+                self.queries.run_local_task(
+                    self,
+                    task_id,
+                    key,
+                    Box::new(move |tcx, def_id| task(tcx, def_id).map(|r|
+                             Box::new(r) as Box<dyn Any>))
+                ).map(|b| *b.downcast::<R>().unwrap())
+            }
         }
 
         impl TyCtxtAt<$tcx> {
@@ -297,6 +313,14 @@ macro_rules! define_callbacks {
                 lookup: QueryLookup,
                 mode: QueryMode,
             ) -> Option<query_stored::$name<$tcx>>;)*
+
+            fn run_local_task(
+                &'tcx self,
+                tcx: TyCtxt<'tcx>,
+                task_id: <dep_graph::DepKind as rustc_query_system::dep_graph::DepKind>::LocalTaskId,
+                key: LocalDefId,
+                task: Box<dyn 'tcx + FnOnce(TyCtxt<'tcx>, LocalDefId) -> Option<Box<dyn Any>>>,
+            ) -> Option<Box<dyn Any>>;
         }
     };
 }

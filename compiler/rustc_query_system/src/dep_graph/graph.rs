@@ -17,7 +17,7 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use super::query::DepGraphQuery;
 use super::serialized::{GraphEncoder, SerializedDepGraph, SerializedDepNodeIndex};
-use super::{DepContext, DepKind, DepNode, HasDepContext, WorkProductId};
+use super::{DepContext, DepKind, DepNode, DepNodeParams, HasDepContext, WorkProductId};
 use crate::ich::StableHashingContext;
 use crate::query::{QueryContext, QuerySideEffects};
 
@@ -352,6 +352,54 @@ impl<K: DepKind> DepGraph<K> {
             (result, dep_node_index)
         } else {
             (op(), self.next_virtual_depnode_index())
+        }
+    }
+
+    /// Executes a function as a task, storing the value for incremental
+    /// compilation, but not making it visible to any other tasks.
+    pub fn with_local_task<Ctxt: QueryContext<DepKind = K>, R, Key>(
+        &self,
+        cx: Ctxt,
+        task_id: K::LocalTaskId,
+        key: Key,
+        task: impl FnOnce(Ctxt::DepContext, Key) -> Option<R>,
+    ) -> Option<R>
+    where
+        (K::LocalTaskId, Key): DepNodeParams<Ctxt::DepContext>,
+    {
+        let dcx = cx.dep_context();
+        if let Some(ref data) = self.data {
+            let joint_key = (task_id, key);
+            let node = DepNode::<K>::construct_local(*dcx, &joint_key);
+            if let Some(_) = self.try_mark_green(cx, &node) {
+                return None;
+            }
+
+            let task_deps = Lock::new(TaskDeps::default());
+            let result = K::with_deps(Some(&task_deps), || task(*dcx, joint_key.1));
+            let task_deps = task_deps.into_inner();
+            let task_deps = task_deps.reads;
+
+            // If we the result was None, we can intern the node to avoid recomputing this
+            // next time.
+            // Otherwise, we leave the node out to indicate that it should be recomputed
+            // next time.
+            if result.is_none() {
+                let print_status =
+                    cfg!(debug_assertions) && dcx.sess().opts.debugging_opts.dep_tasks;
+                data.current.intern_node(
+                    dcx.profiler(),
+                    &data.previous,
+                    node,
+                    task_deps,
+                    None,
+                    print_status,
+                );
+            }
+
+            result
+        } else {
+            task(*dcx, key)
         }
     }
 

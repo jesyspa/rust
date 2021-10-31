@@ -21,8 +21,15 @@ pub type DepGraphQuery = rustc_query_system::dep_graph::DepGraphQuery<DepKind>;
 pub type SerializedDepGraph = rustc_query_system::dep_graph::SerializedDepGraph<DepKind>;
 pub type EdgeFilter = rustc_query_system::dep_graph::debug::EdgeFilter<DepKind>;
 
+#[derive(Copy, Clone, PartialEq, HashStable, Debug)]
+pub enum LocalTaskId {
+    TestPass,
+}
+
 impl rustc_query_system::dep_graph::DepKind for DepKind {
+    type LocalTaskId = LocalTaskId;
     const NULL: Self = DepKind::Null;
+    const LOCAL_TASK: Self = DepKind::LocalTask;
 
     fn debug_node(node: &DepNode, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}(", node.kind)?;
